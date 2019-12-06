@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.2.xsd">
+<task:scheduler id="schedulerForBatch" pool-size="10"/>
+
+ 	<task:scheduled-tasks scheduler="schedulerForBatch">
+        <task:scheduled ref="batchController" method="printWithCron" cron="0 0 */1 * * *" />
+        <task:scheduled ref="batchController" method="userBatch" cron="0 0 */1 * * *" />
+        <task:scheduled ref="batchController" method="deptBatch" cron="0 0 */2 * * *" />
+    </task:scheduled-tasks>
+
+     <bean id="batchController" class="com.solutionlink.itscope.framework.batch.BatchController">
+        <property name="gwInfoManager" ref="gwInfoManager"/>
+        <property name="pmBatchManager" ref="pmBatchManager"/>
+    </bean>
+
+    <!--
+    <task:annotation-driven scheduler="schedulerForBatch"/>
+     -->
+	<!--
+	<context:component-scan base-package="com.solutionlink.itscope.framework.batch"/>
+	 -->
+</beans>
