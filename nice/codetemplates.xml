@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><templates><template autoinsert="true" context="gettercomment_context" deleted="true" description="Getter 메소드의 설명" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.gettercomment" name="gettercomment">/**
+ * @return ${bare_field_name}
+ */</template><template autoinsert="true" context="settercomment_context" deleted="true" description="Setter 메소드의 설명" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.settercomment" name="settercomment">/**
+ * @param ${param} 설정하려는 ${bare_field_name}
+ */</template><template autoinsert="false" context="constructorcomment_context" deleted="true" description="작성된 생성자에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.constructorcomment" name="constructorcomment">/**
+ * &lt;PRE&gt;
+ * 1. MethodName	: ${enclosing_type}
+ * 2. ClassName		: ${enclosing_type}
+ * 3. Comment		: 
+ * 4. 작성자			: ${user}
+ * 5. 작성일			: ${date} ${time}
+ * &lt;/PRE&gt;
+ * 		${tags}
+ */</template><template autoinsert="false" context="filecomment_context" deleted="true" description="작성된 Java 파일에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.filecomment" name="filecomment">/**
+ * ==========================================================================
+ * P R O G R A M    I N F O R M A T I O N
+ * ==========================================================================
+ * 0. Project		: ITSCOPE
+ *
+ * 1. FileName		: ${file_name}
+ * 2. Package		: ${package_name}
+ * 3. Comment		: 
+ * 4. Author		: ${user}
+ * 5. Since			: ${date} ${time}
+ *
+ * ==========================================================================
+ * V E R S I O N    C O N T R O L
+ * ==========================================================================
+ * DATE			AUTHOR		DESCRIPTION
+ * ------------ ----------- -------------------------------------------------
+ * ${date} ${user} 		신규 개발.
+ * ==========================================================================
+ */</template><template autoinsert="false" context="typecomment_context" deleted="true" description="작성된 유형에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.typecomment" name="typecomment">/**
+ * ==========================================================================
+ * P R O G R A M    I N F O R M A T I O N
+ * ==========================================================================
+ * 0. Project		: ITSCOPE
+ *
+ * 1. FileName		: ${file_name}
+ * 2. Package		: ${package_name}
+ * 3. Comment		: 
+ * 4. Author		: ${user}
+ * 5. Since			: ${date} ${time}
+ *
+ * ==========================================================================
+ * V E R S I O N    C O N T R O L
+ * ==========================================================================
+ * DATE			AUTHOR		VER.	DESCRIPTION
+ * ------------ ----------- ------- -----------------------------------------
+ * ${date} ${user} 		1.0		신규 개발.
+ * ==========================================================================
+ */</template><template autoinsert="true" context="fieldcomment_context" deleted="true" description="필드의 설명" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.fieldcomment" name="fieldcomment">/**
+ * 
+ */</template><template autoinsert="false" context="methodcomment_context" deleted="true" description="비대체 메소드에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.methodcomment" name="methodcomment">/**
+ * &lt;PRE&gt;
+ * 1. MethodName	: ${enclosing_method}
+ * 2. ClassName		: ${enclosing_type}
+ * 3. Comment		: 
+ * 4. 작성자			: ${user}
+ * 5. 작성일			: ${date} ${time}
+ * &lt;/PRE&gt;
+ * 		@return ${return_type}
+ * 		${tags}
+ */</template><template autoinsert="false" context="overridecomment_context" deleted="true" description="대체 메소드에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.overridecomment" name="overridecomment">/**
+ * &lt;PRE&gt;
+ * 1. MethodName	: ${enclosing_method}
+ * 2. ClassName		: ${enclosing_type}
+ * 3. Comment		: 
+ * 4. 작성자			: ${user}
+ * 5. 작성일			: ${date} ${time}
+ * &lt;/PRE&gt;
+ * 		${tags}
+ */</template><template autoinsert="true" context="delegatecomment_context" deleted="true" description="위임 메소드에 대한 주석" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.delegatecomment" name="delegatecomment">/**
+ * ${tags}
+ * ${see_to_target}
+ */</template><template autoinsert="true" context="newtype_context" deleted="true" description="Newly created files" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.newtype" name="newtype">${filecomment}
+${package_declaration}
+
+${typecomment}
+${type_declaration}</template><template autoinsert="true" context="classbody_context" deleted="true" description="Code in new class type bodies" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.classbody" name="classbody">
+</template><template autoinsert="true" context="interfacebody_context" deleted="true" description="Code in new interface type bodies" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.interfacebody" name="interfacebody">
+</template><template autoinsert="true" context="enumbody_context" deleted="true" description="Code in new enum type bodies" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.enumbody" name="enumbody">
+</template><template autoinsert="true" context="annotationbody_context" deleted="true" description="Code in new annotation type bodies" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.annotationbody" name="annotationbody">
+</template><template autoinsert="true" context="catchblock_context" deleted="true" description="Code in new catch blocks" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.catchblock" name="catchblock">// ${todo} Auto-generated catch block
+${exception_var}.printStackTrace();</template><template autoinsert="true" context="methodbody_context" deleted="true" description="Code in created method stubs" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.methodbody" name="methodbody">// ${todo} Auto-generated method stub
+${body_statement}</template><template autoinsert="true" context="constructorbody_context" deleted="true" description="Code in created constructor stubs" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.constructorbody" name="constructorbody">${body_statement}
+// ${todo} Auto-generated constructor stub</template><template autoinsert="true" context="getterbody_context" deleted="true" description="Code in created getters" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.getterbody" name="getterbody">return ${field};</template><template autoinsert="true" context="setterbody_context" deleted="true" description="Code in created setters" enabled="true" id="org.eclipse.jdt.ui.text.codetemplates.setterbody" name="setterbody">${field} = ${param};</template></templates>
