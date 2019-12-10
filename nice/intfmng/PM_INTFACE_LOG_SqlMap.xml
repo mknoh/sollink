@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd">
+<sqlMap namespace="PM_INTFACE_LOG">
+ <resultMap id="PmIntfaceLogList" class="com.solutionlink.itscope.intface.model.PmIntfaceLog" >
+    <result column="INF_SEQ" jdbcType="VARCHAR" property="infSeq"/>
+    <result column="MODE" jdbcType="VARCHAR" property="mode"/>
+    <result column="INF_SYSTEM" jdbcType="VARCHAR" property="infSystem"/>
+    <result column="INF_DIV" jdbcType="VARCHAR" property="infDiv"/>
+    <result column="SEND_DIV" jdbcType="VARCHAR" property="sendDiv"/>
+    <result column="INPUT_URL" jdbcType="VARCHAR" property="inputUrl"/>
+    <result column="INPUT_PARAM" jdbcType="VARCHAR" property="inputParam"/>
+    <result column="OUTPUT_URL" jdbcType="VARCHAR" property="outputUrl"/>
+    <result column="OUTPUT_PARAM" jdbcType="VARCHAR" property="outputParam"/>    
+    <result column="RESULT_CD" jdbcType="VARCHAR" property="resultCd"/>
+    <result column="RESULT_MSG" jdbcType="VARCHAR" property="resultMsg"/>
+    <result column="ENTRY_ID" jdbcType="VARCHAR" property="entryId"/>
+    <result column="ENTRY_NAME" jdbcType="VARCHAR" property="entryName"/>
+    <result column="ENTRY_DT" jdbcType="VARCHAR" property="entryDt"/>
+    <result column="UPDATE_ID" jdbcType="VARCHAR" property="updateId"/>
+    <result column="UPDATE_NAME" jdbcType="VARCHAR" property="updateName"/>
+    <result column="UPDATe_DT" jdbcType="VARCHAR" property="updateDt"/>
+  </resultMap>
+   <select id="selectIntfaceLogList" parameterClass="java.util.HashMap" resultMap="PmIntfaceLogList">
+    SELECT INF_SEQ, MODE,
+    	INF_SYSTEM, INF_DIV,
+    	SEND_DIV,
+    	INPUT_URL, INPUT_PARAM,
+    	OUTPUT_URL, OUTPUT_PARAM,
+    	RESULT_CD, RESULT_MSG,
+    	ENTRY_ID, 
+    	dbo.FNC_USER_NAME(ENTRY_ID) as ENTRY_NAME, 
+    	CONVERT(VARCHAR(8), ENTRY_DT,112) as ENTRY_DT, 
+    	UPDATE_ID,
+    	dbo.FNC_USER_NAME(UPDATE_ID) as UPDATE_NAME, 
+    	CONVERT(VARCHAR(8), UPDATE_DT,112) as UPDATE_DT
+    FROM PM_INTFACE_LOG
+    WHERE 1=1
+    <dynamic>
+    	<isNotEmpty property="searchInfSystem">
+  			AND INF_SYSTEM = #searchInfSystem:VARCHAR#
+  		</isNotEmpty>
+  		<isNotEmpty property="searchInfDiv">
+  			AND INF_DIV = #searchInfDiv:VARCHAR#
+  		</isNotEmpty>
+    </dynamic>
+    
+  </select>
+  
+  <select id="selectByPrimaryKey" parameterClass="com.solutionlink.itscope.intface.model.PmIntfaceLog" resultMap="PmIntfaceLogList">
+    SELECT INF_SEQ, MODE,
+    	INF_SYSTEM, INF_DIV,
+    	SEND_DIV,
+    	INPUT_URL, INPUT_PARAM,
+    	OUTPUT_URL, OUTPUT_PARAM,
+    	RESULT_CD, RESULT_MSG,
+    	ENTRY_ID, 
+    	dbo.FNC_USER_NAME(ENTRY_ID) as ENTRY_NAME, 
+    	CONVERT(VARCHAR(8), ENTRY_DT,112) as ENTRY_DT, 
+    	UPDATE_ID,
+    	dbo.FNC_USER_NAME(UPDATE_ID) as UPDATE_NAME, 
+    	CONVERT(VARCHAR(8), UPDATE_DT,112) as UPDATE_DT
+    FROM PM_INTFACE_LOG
+    WHERE INF_SEQ = #infSeq:VARCHAR#
+    
+  </select>
+  
+   <select id="selectIntfaceSeq" resultClass="java.lang.String">
+    SELECT ISNULL(MAX(INF_SEQ),0)+1 as MAX_SEQ
+    FROM PM_INTFACE_LOG
+  </select>
+  
+  
+ 
+
+  <insert id="insert" parameterClass="com.solutionlink.itscope.intface.model.PmIntfaceLog">
+    INSERT INTO PM_INTFACE_LOG (
+    	INF_SEQ, MODE,
+    	INF_SYSTEM, INF_DIV,
+    	SEND_DIV,
+    	INPUT_URL, INPUT_PARAM,
+    	OUTPUT_URL, OUTPUT_PARAM,
+    	RESULT_CD, RESULT_MSG,
+    	ENTRY_ID,  ENTRY_DT 
+    )
+    VALUES (#infSeq:VARCHAR#, #mode:VARCHAR#, 
+    	#infSystem:VARCHAR#, #infDiv:VARCHAR#,
+    	#sendDiv:VARCHAR#,
+    	#inputUrl:VARCHAR#, #inputParam:VARCHAR#, 
+    	#outputUrl:VARCHAR#, #outputParam:VARCHAR#,
+    	#resultCd:VARCHAR#, #resultMsg:VARCHAR#,
+    	#entryId:VARCHAR#, GETDATE()
+    )
+  </insert>
+
+  <update id="updateByPrimaryKeySelective" parameterClass="com.solutionlink.itscope.intface.model.PmIntfaceLog">
+    UPDATE PM_INTFACE_LOG
+	SET		UPDATE_DT = GETDATE()
+	<dynamic>
+      <isNotNull prepend="," property="inputUrl">
+        INPUT_URL = #inputUrl:VARCHAR#
+      </isNotNull>
+      <isNotNull prepend="," property="inputParam">
+        INPUT_PARAM = #inputParam:VARCHAR#
+      </isNotNull>
+      <isNotNull prepend="," property="outputUrl">
+        OUTPUT_URL = #outputUrl:VARCHAR#
+      </isNotNull>
+      <isNotNull prepend="," property="outputParam">
+        OUTPUT_PARAM = #outputParam:VARCHAR#
+      </isNotNull>
+      
+      <isNotNull prepend="," property="resultCd">
+        RESULT_CD = #resultCd:VARCHAR#
+      </isNotNull>
+      <isNotNull prepend="," property="resultMsg">
+        RESULT_MSG = #resultMsg:VARCHAR#
+      </isNotNull>
+   
+      <isNotNull prepend="," property="updateId">
+        UPDATE_ID = #updateId:VARCHAR#
+      </isNotNull>
+      
+    </dynamic>
+    WHERE INF_SEQ = #infSeq:VARCHAR#
+  </update>
+  
+  
+  
+</sqlMap>
