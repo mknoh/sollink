@@ -1,0 +1,853 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Wed May 23 10:05:41 KST 2018-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="PM_DASHBOARD_STATUS">
+	<select id="dashBoardIntegrationTest" parameterType="java.util.Map" resultType="java.util.HashMap">
+	/* PM_DASHBOARD_STATUS.dashBoardIntegrationTest */ 
+		WITH DATA1 AS(
+		    select TS.PRJ_MNG_NO
+		         , tc.PATTERN_DIV1
+		         , TS.TEST_NO
+		         , TC.TEST_SEQ
+		         , tr.RESULT_SEQ
+		         , SUM(NVL(tr.test_pass,0)) as TEST_PASS
+		      from PM_PRJ_TEST_SCENARIO ts 
+		left join PM_PRJ_TEST_CASE tc on(ts.prj_mng_no = tc.prj_mng_no and ts.test_no = tc.test_no)
+		left join (select prj_mng_no
+		                , test_no
+		                , test_seq
+		                , result_seq
+		                , (case when test_result = 'P' OR TEST_RESULT = 'D' then 1
+		                   else 0
+		                   end) as test_pass
+		                , PERFORM_DATE
+		             from PM_TEST_RESULT
+		            where test_result!='N'
+		             
+		             	<if test="testType != null and testType != '' ">
+			           	  AND RESULT_SEQ = TO_NUMBER(#{testType,jdbcType=VARCHAR})
+			            </if>
+		             
+		             ) tr on(tc.prj_mng_no = tr.prj_mng_no and tc.test_no = tr.test_no and tc.test_seq = tr.test_seq)
+		 WHERE ts.IS_ACTIVE = '1'
+		   AND tc.IS_ACTIVE ='1'
+		   
+		   	 <if test="prjMngNo != null and prjMngNo != '' ">
+		   	 	AND ts.PRJ_MNG_NO = #{prjMngNo,jdbcType=VARCHAR} 
+		   	 </if>
+		   	 <if test="searchSdate != null and searchSdate != '' ">
+		   	 	<if test="searchEdate != null and searchEdate != '' ">
+		   	 		AND tr.PERFORM_DATE BETWEEN #{searchSdate,jdbcType=VARCHAR} AND #{searchEdate,jdbcType=VARCHAR}
+		   	 	</if>
+		   	 </if>
+		   	 <if test="testScenarioType != null and testScenarioType != '' ">
+		   	 	AND ts.TEST_SCENARIO_TYPE=#{testScenarioType,jdbcType=VARCHAR}
+		   	 </if>
+		   	 <if test="testScenarioSeq != null and testScenarioSeq != '' ">
+		   	 	<if test="testScenarioSeq neq 'ALL'">
+		   	 		AND ts.TEST_SCENARIO_SEQ=#{testScenarioSeq,jdbcType=VARCHAR}
+		   	 	</if>
+		   	 </if>
+		   
+		 GROUP BY TS.PRJ_MNG_NO, tc.PATTERN_DIV1, TS.TEST_NO, TC.TEST_SEQ, TR.RESULT_SEQ
+		)
+		, DATA2 AS(
+		    SELECT data.PATTERN_DIV1
+		         , data.TEST_NO
+		         , data.TEST_SEQ
+		         , data.RESULT_SEQ
+		         , data.TEST_PASS
+		         , SUM(NVL(df.defect_id,0)) as DEFECT_ID
+		         , SUM(NVL(df.defect_entry_cnt,0)) as DEFECT_ENTRY_CNT
+		         , SUM(NVL(df.non_defect_cnt,0)) as NON_DEFECT_CNT
+		         , SUM(NVL(df.defect_cnt,0)) as DEFECT_CNT
+		         , SUM(NVL(df.defect_process_cnt,0)) as DEFECT_PROCESS_CNT
+		         , SUM(NVL(df.defect_finish_cnt,0)) as DEFECT_FINISH_CNT
+		         , SUM(NVL(df.defect_confirm_cnt,0)) as DEFECT_CONFIRM_CNT
+		         , SUM(NVL(df.total_confirm_cnt,0)) as TOTAL_CONFIRM_CNT
+		     from DATA1 data
+		     left join ( select prj_mng_no
+		                 , apnd_mng_no as test_no
+		                 , apnd_seq_no as test_seq
+		                 , 1 as defect_id
+		                 , TEST_TYPE
+		                 , (case when is_defect is null then 1 else 0 end) as defect_entry_cnt
+		                 , (case when is_defect = '0' then 1 else 0 end) as non_defect_cnt
+		                 , (case when is_defect = '1' then 1 else 0 end) as defect_cnt
+		                 , (case when defect_status = '2' and is_defect='1' then 1 else 0 end) as defect_process_cnt
+		                 , (case when defect_status = '3' and confirm_status is null and is_defect='1' then 1 else 0 end) as defect_finish_cnt
+		                 , (case when defect_status = '3' and confirm_status = 'C' and is_defect='1' then 1 else 0 end) as defect_confirm_cnt
+		                 , (case when defect_status = '3' and confirm_status = 'C' then 1 else 0 end) as total_confirm_cnt
+		              from PM_INSPECTION_DETAIL
+		             where task_id = '99999'
+		             
+		             	<if test="testType != null and testType != '' ">
+			           	  AND TEST_TYPE = #{testType,jdbcType=VARCHAR}
+			            </if>
+		             
+		             ) df on(data.prj_mng_no = df.prj_mng_no and data.test_no = df.test_no and data.test_seq = df.test_seq and data.result_seq = TO_NUMBER(df.test_type)) 
+		        group by DATA.PATTERN_DIV1, DATA.TEST_NO, DATA.TEST_SEQ, DATA.RESULT_SEQ, DATA.TEST_PASS
+		)
+		select IT.PATTERN_DIV1
+		     , IT.TOTAL_TC_CNT
+		     , IT.TOTAL_RESULT_CNT
+		     , ROUND(NVL(IT.TOTAL_RESULT_CNT/DECODE(IT.TOTAL_TC_CNT, 0, NULL, IT.TOTAL_TC_CNT),0)*100, 2) AS TEST_PROCESS_PT
+		     , NVL(IT.TOTAL_TEST_PASS_CNT,0) as TOTAL_TEST_PASS_CNT
+		     , ROUND(NVL(IT.TOTAL_TEST_PASS_CNT/DECODE(IT.TOTAL_TC_CNT, 0, NULL, IT.TOTAL_TC_CNT),0)*100, 2) AS TEST_PASS_PT
+		     , NVL(IT.TOTAL_ENTRY_CNT, 0) AS TOTAL_ENTRY_CNT
+		     , NVL(IT.TOTAL_DEFECT_ENTRY_CNT, 0) AS TOTAL_DEFECT_ENTRY_CNT
+		     , NVL(IT.TOTAL_NON_DEFECT_CNT, 0) AS TOTAL_NON_DEFECT_CNT
+		     , NVL(IT.TOTAL_DEFECT_CNT, 0) AS TOTAL_DEFECT_CNT
+		     , NVL(IT.TOTAL_DEFECT_PROCESS_CNT, 0) AS TOTAL_DEFECT_PROCESS_CNT
+		     , NVL(IT.TOTAL_DEFECT_FINISH_CNT, 0) AS TOTAL_DEFECT_FINISH_CNT
+		     , ROUND(NVL((IT.TOTAL_DEFECT_FINISH_CNT+IT.TOTAL_DEFECT_CONFIRM_CNT)/DECODE(IT.TOTAL_DEFECT_CNT, 0, NULL, IT.TOTAL_DEFECT_CNT),0)*100, 2) as DEFECT_FINISH_PT
+		     , NVL(IT.TOTAL_DEFECT_CONFIRM_CNT, 0) AS TOTAL_DEFECT_CONFIRM_CNT
+		     , ROUND(NVL(IT.TOTAL_DEFECT_CONFIRM_CNT/DECODE(IT.TOTAL_DEFECT_CNT, 0, NULL, IT.TOTAL_DEFECT_CNT),0)*100, 2) as DEFECT_CONFIRM_PT
+		     , ROUND(NVL(IT.TOTAL_CONFIRM_CNT/DECODE(IT.TOTAL_ENTRY_CNT, 0, NULL, IT.TOTAL_ENTRY_CNT),0)*100, 2) as TOTAL_CONFIRM_PT
+		  from	( select PATTERN_DIV1
+				      , count(TEST_SEQ) as TOTAL_TC_CNT
+				      , count(RESULT_SEQ) as TOTAL_RESULT_CNT
+				      , sum(NVL(test_pass,0)) as TOTAL_TEST_PASS_CNT
+				      , sum(NVL(defect_id,0)) as TOTAL_ENTRY_CNT
+				      , sum(NVL(defect_entry_cnt,0)) as TOTAL_DEFECT_ENTRY_CNT
+				      , sum(NVL(non_defect_cnt,0)) as TOTAL_NON_DEFECT_CNT
+				      , sum(NVL(defect_cnt, 0)) as TOTAL_DEFECT_CNT
+				      , sum(NVL(defect_process_cnt,0)) as TOTAL_DEFECT_PROCESS_CNT
+				      , sum(NVL(defect_finish_cnt,0)) as TOTAL_DEFECT_FINISH_CNT
+				      , sum(NVL(defect_confirm_cnt,0)) as TOTAL_DEFECT_CONFIRM_CNT
+				      , sum(NVL(total_confirm_cnt,0)) as TOTAL_CONFIRM_CNT
+				    from DATA2
+				    group by PATTERN_DIV1
+				) IT
+		UNION ALL
+		select 'TOTAL' as PATTERN_DIV1
+		     , IT.TOTAL_TC_CNT
+		     , IT.TOTAL_RESULT_CNT
+		     , ROUND(NVL(IT.TOTAL_RESULT_CNT/DECODE(IT.TOTAL_TC_CNT, 0, NULL, IT.TOTAL_TC_CNT),0)*100, 2) AS TEST_PROCESS_PT
+		     , NVL(IT.TOTAL_TEST_PASS_CNT,0) as TOTAL_TEST_PASS_CNT
+		     , ROUND(NVL(IT.TOTAL_TEST_PASS_CNT/DECODE(IT.TOTAL_TC_CNT, 0, NULL, IT.TOTAL_TC_CNT),0)*100, 2) AS TEST_PASS_PT
+		     , NVL(IT.TOTAL_ENTRY_CNT, 0) AS TOTAL_ENTRY_CNT
+		     , NVL(IT.TOTAL_DEFECT_ENTRY_CNT, 0) AS TOTAL_DEFECT_ENTRY_CNT
+		     , NVL(IT.TOTAL_NON_DEFECT_CNT, 0) AS TOTAL_NON_DEFECT_CNT
+		     , NVL(IT.TOTAL_DEFECT_CNT, 0) AS TOTAL_DEFECT_CNT
+		     , NVL(IT.TOTAL_DEFECT_PROCESS_CNT, 0) AS TOTAL_DEFECT_PROCESS_CNT
+		     , NVL(IT.TOTAL_DEFECT_FINISH_CNT, 0) AS TOTAL_DEFECT_FINISH_CNT
+		     , ROUND(NVL((IT.TOTAL_DEFECT_FINISH_CNT+IT.TOTAL_DEFECT_CONFIRM_CNT)/DECODE(IT.TOTAL_DEFECT_CNT, 0, NULL, IT.TOTAL_DEFECT_CNT),0)*100, 2) as DEFECT_FINISH_PT
+		     , NVL(IT.TOTAL_DEFECT_CONFIRM_CNT, 0) AS TOTAL_DEFECT_CONFIRM_CNT
+		     , ROUND(NVL(IT.TOTAL_DEFECT_CONFIRM_CNT/DECODE(IT.TOTAL_DEFECT_CNT, 0, NULL, IT.TOTAL_DEFECT_CNT),0)*100, 2) as DEFECT_CONFIRM_PT
+		     , ROUND(NVL(IT.TOTAL_CONFIRM_CNT/DECODE(IT.TOTAL_ENTRY_CNT, 0, NULL, IT.TOTAL_ENTRY_CNT),0)*100, 2) as TOTAL_CONFIRM_PT
+		  from	( select count(TEST_SEQ) as TOTAL_TC_CNT
+				      , count(RESULT_SEQ) as TOTAL_RESULT_CNT
+				      , sum(NVL(test_pass,0)) as TOTAL_TEST_PASS_CNT
+				      , sum(NVL(defect_id,0)) as TOTAL_ENTRY_CNT
+				      , sum(NVL(defect_entry_cnt,0)) as TOTAL_DEFECT_ENTRY_CNT
+				      , sum(NVL(non_defect_cnt,0)) as TOTAL_NON_DEFECT_CNT
+				      , sum(NVL(defect_cnt, 0)) as TOTAL_DEFECT_CNT
+				      , sum(NVL(defect_process_cnt,0)) as TOTAL_DEFECT_PROCESS_CNT
+				      , sum(NVL(defect_finish_cnt,0)) as TOTAL_DEFECT_FINISH_CNT
+				      , sum(NVL(defect_confirm_cnt,0)) as TOTAL_DEFECT_CONFIRM_CNT
+				      , sum(NVL(total_confirm_cnt,0)) as TOTAL_CONFIRM_CNT
+				    from DATA2
+				) IT
+	</select>
+	
+	<select id="selectPrjRateList" resultType="java.util.HashMap" parameterType="java.util.Map" >
+		/*PM_DASHBOARD_STATUS.selectPrjRateList 임시 쿼리*/
+  		SELECT
+  		  		*	
+  		  FROM  
+        
+                (
+                SELECT  'PRJ-01' PRJ_MNG_NO, 50 AS PRJ_RATE FROM DUAL
+                UNION ALL                   
+                SELECT  'PRJ-02' PRJ_MNG_NO, 51 AS PRJ_RATE FROM DUAL
+                UNION ALL                    
+                SELECT  'PRJ-03' PRJ_MNG_NO, 52 AS PRJ_RATE FROM DUAL
+                UNION ALL                    
+                SELECT  'PRJ-04' PRJ_MNG_NO, 53 AS PRJ_RATE FROM DUAL
+                UNION ALL                   
+                SELECT  'PRJ-05' PRJ_MNG_NO, 54 AS PRJ_RATE FROM DUAL
+                UNION ALL                    
+                SELECT  'PRJ-06' PRJ_MNG_NO, 55 AS PRJ_RATE FROM DUAL
+                UNION ALL                    
+                SELECT  'PRJ-07' PRJ_MNG_NO, 56 AS PRJ_RATE FROM DUAL
+                UNION ALL                    
+                SELECT  'PRJ-08' PRJ_MNG_NO, 57 AS PRJ_RATE FROM DUAL
+                )
+	</select>
+	
+	<select id="dashBoardDeptProjectTab" parameterType="java.util.Map" resultType="java.util.HashMap">
+	/* PM_DASHBOARD_STATUS.dashBoardDeptProjectTab */ 
+	/* PM_DASHBOARD_STATUS_SqlMap.dashBoardDeptProjectTab 연간 부서별 프로젝트 현황 2019-08-23 재귀쿼리로 변경함*/
+	
+	WITH PRJ_CTE (CHARGE_PART_ID, CNT
+		, PROCESS_CNT, PROCESS_DELAY_CNT, CMPL_CNT, STAY_CNT, STAY_DELAY_CNT
+		, PRJ_DIV0, PRJ_DIV1, PRJ_DIV2, PRJ_DIV3, PRJ_DIV4, PRJ_DIV5, PRJ_DIV6 )
+	AS (
+		SELECT p.CHARGE_PART_ID, 1 as CNT,
+				(CASE WHEN p.PRJ_STATUS IN('1','3') AND p.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as PROCESS_CNT,
+		        (CASE WHEN p.PRJ_STATUS IN('1','3') AND p.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as PROCESS_DELAY_CNT,
+		        (CASE WHEN p.PRJ_STATUS  = '2' THEN 1 else 0 end) as CMPL_CNT,
+		        (CASE WHEN p.PRJ_STATUS  = '0' AND p.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as STAY_CNT,
+		        (CASE WHEN p.PRJ_STATUS  = '0' AND p.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as STAY_DELAY_CNT,
+		        (CASE WHEN p.PRJ_DIV is null THEN 1 ELSE 0 END) as PRJ_DIV0,
+		        (CASE WHEN p.PRJ_DIV ='1' THEN 1 ELSE 0 END) as PRJ_DIV1,
+		        (CASE WHEN p.PRJ_DIV ='2' THEN 1 ELSE 0 END) as PRJ_DIV2,
+		        (CASE WHEN p.PRJ_DIV ='3' THEN 1 ELSE 0 END) as PRJ_DIV3,
+		        (CASE WHEN p.PRJ_DIV ='4' THEN 1 ELSE 0 END) as PRJ_DIV4,
+		        (CASE WHEN p.PRJ_DIV ='5' THEN 1 ELSE 0 END) as PRJ_DIV5,
+		        (CASE WHEN p.PRJ_DIV ='6' THEN 1 ELSE 0 END) as PRJ_DIV6  
+		FROM PM_PRJ P
+		WHERE #{baseYear,jdbcType=VARCHAR} BETWEEN substr(p.PLAN_BEG_DATE,1,LENGTH(#{baseYear,jdbcType=VARCHAR})) AND substr(p.PLAN_END_DATE,1,LENGTH(#{baseYear,jdbcType=VARCHAR}))
+		AND PRJ_STATUS != '5'
+	) 
+	, DEPT_CTE (DEPT_ID, PARENT_DEPT_ID, CNT, PROCESS_CNT, PROCESS_DELAY_CNT, CMPL_CNT, STAY_CNT, STAY_DELAY_CNT)
+	AS (
+		SELECT d.DEPT_ID, d.PARENT_DEPT_ID
+		 , sum(CNT) as CNT
+		 , sum(PROCESS_CNT)   as PROCESS_CNT
+		 , sum(PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT
+		 , sum(CMPL_CNT) as CMPL_CNT
+		 , sum(STAY_CNT) as STAY_CNT
+		 , sum(STAY_DELAY_CNT) as STAY_DELAY_CNT
+		FROM PM_DEPT d LEFT JOIN PRJ_CTE p ON (d.DEPT_ID = p.CHARGE_PART_ID)
+		WHERE d.DEPT_STATUS= '1'
+			AND d.COMP_ID = #{searchCompId,jdbcType=VARCHAR}
+			and d.DEPT_BIZ_YN = '0'
+		group by d.DEPT_ID, d.PARENT_DEPT_ID	
+	)
+	<!-- 
+	a.DEPT_ID, a.DEPT_NAME, a.PARENT_DEPT_ID,
+		        a.DEPT_LEVEL, FNC_REF_CODE_NAME('20102',a.DEPT_LEVEL) as DEPT_LEVEL_NAME,
+		        NVL(g.PROCESS_CNT,0) + NVL(c.PROCESS_CNT,0) as PROCESS_CNT, 
+		        NVL(g.CMPL_CNT,0) + NVL(c.CMPL_CNT,0) as CMPL_CNT, 
+		        NVL(g.STAY_CNT,0) + NVL(c.STAY_CNT,0) as STAY_CNT, 
+		        NVL(g.PROCESS_DELAY_CNT,0) + NVL(c.PROCESS_DELAY_CNT,0) + NVL(g.STAY_DELAY_CNT,0) + NVL(c.STAY_DELAY_CNT,0) as DELAY_CNT,
+		        NVL(g.PRJ_DIV0,0) + NVL(c.PRJ_DIV0,0) as DIV0, 
+		        NVL(g.PRJ_DIV1,0) + NVL(c.PRJ_DIV1,0) as DIV1, 
+		        NVL(g.PRJ_DIV2,0) + NVL(c.PRJ_DIV2,0) as DIV2, 
+		        NVL(g.PRJ_DIV3,0) + NVL(c.PRJ_DIV3,0) as DIV3,
+		        NVL(g.PRJ_DIV4,0) + NVL(c.PRJ_DIV4,0) as DIV4, 
+		        NVL(g.PRJ_DIV5,0) + NVL(c.PRJ_DIV5,0) as DIV5, 
+		        NVL(g.PRJ_DIV6,0) + NVL(c.PRJ_DIV6,0) as DIV6		
+	 -->
+	SELECT 
+		DEPT_ID, DEPT_TITLE as DEPT_NAME, PARENT_DEPT_ID
+		, DEPT_LEVEL, FNC_REF_CODE_NAME('20102',DEPT_LEVEL) as DEPT_LEVEL_NAME
+		, SORT_ORDER
+		, (PROCESS_SELF + PROCESS_SUB) AS PROCESS_CNT
+		, (CMPL_SELF + CMPL_SUB) as CMPL_CNT
+		, (STAY_SELF + STAY_SUB) as STAY_CNT
+		, (PROCESS_DELAY_SELF+PROCESS_DELAY_SUB + STAY_DELAY_SELF+STAY_DELAY_SUB) as DELAY_CNT
+		, (TOT_SELF+TOT_SUB) as TOT_CNT
+	FROM (
+		SELECT m.DEPT_ID, lpad(' ', (d.DEPT_LEVEL-1)*2, '   ')||d.DEPT_NAME as DEPT_TITLE, m.PARENT_DEPT_ID, d.DEPT_LEVEL
+			, d.SORT_ORDER
+			, NVL(m.CNT, 0) AS TOT_SELF
+			, (	
+				SELECT NVL(SUM(t.CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as TOT_SUB
+			, NVL(m.PROCESS_CNT,0) as PROCESS_SELF 
+			, (	
+				SELECT NVL(SUM(t.PROCESS_CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as PROCESS_SUB
+			, NVL(m.PROCESS_DELAY_CNT,0) as PROCESS_DELAY_SELF 
+			, (	
+				SELECT NVL(SUM(t.PROCESS_DELAY_CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as PROCESS_DELAY_SUB
+			, NVL(m.CMPL_CNT,0) as CMPL_SELF 
+			, (	
+				SELECT NVL(SUM(t.CMPL_CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as CMPL_SUB
+			, NVL(m.STAY_CNT,0) as STAY_SELF 
+			, (	
+				SELECT NVL(SUM(t.STAY_CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as STAY_SUB
+			, NVL(m.STAY_DELAY_CNT,0) as STAY_DELAY_SELF 
+			, (	
+				SELECT NVL(SUM(t.STAY_DELAY_CNT),0) as CNT
+				FROM DEPT_CTE t
+				START WITH t.PARENT_DEPT_ID = m.DEPT_ID 
+				CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID
+			) as STAY_DELAY_SUB
+		FROM DEPT_CTE m JOIN PM_DEPT d ON (m.DEPT_ID = d.DEPT_ID)
+	)
+<!-- 		
+	WITH DATA1 AS (
+			SELECT  a.DEPT_ID , a.DEPT_NAME , a.PARENT_DEPT_ID,  a.SORT_ORDER, b.PRJ_MNG_NO,
+		        (CASE WHEN b.PRJ_STATUS IN('1','3') AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as PROCESS_CNT,
+		        (CASE WHEN b.PRJ_STATUS IN('1','3') AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as PROCESS_DELAY_CNT,
+		        (CASE WHEN b.PRJ_STATUS  = '2' THEN 1 else 0 end) as CMPL_CNT,
+		        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as STAY_CNT,
+		        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} THEN 1 else 0 end) as STAY_DELAY_CNT,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) is null AND b.prj_mng_no is not null THEN 1 ELSE 0 END) as PRJ_DIV0,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='1' THEN 1 ELSE 0 END) as PRJ_DIV1,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='2' THEN 1 ELSE 0 END) as PRJ_DIV2,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='3' THEN 1 ELSE 0 END) as PRJ_DIV3,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='4' THEN 1 ELSE 0 END) as PRJ_DIV4,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='5' THEN 1 ELSE 0 END) as PRJ_DIV5,
+		        (CASE WHEN NVL(b.prj_div, b.biz_cd) ='6' THEN 1 ELSE 0 END) as PRJ_DIV6,
+		        (CASE WHEN b.cmpl_hope_date <![CDATA[<=]]> d.TRANSF_ADMIT_DATE THEN 1 ELSE 0 END) as DELIVERY_CNT,
+		        (CASE WHEN d.sdlc_seq <![CDATA[>]]> 1 THEN 1 ELSE 0 END) as REDEPLOY_CNT
+			FROM    PM_DEPT a LEFT JOIN 
+		        (
+		        SELECT	a.*, (select s.REF_BIZ_CD1 from PM_STD_WBS s where s.STD_WBS_ID = a.WBS_SEQ) as BIZ_CD   
+		        FROM	PM_PRJ a
+		        WHERE   PRJ_STATUS != '5'
+		        AND     is_master     = '0'
+		        AND   #{baseYear} BETWEEN substr(PLAN_BEG_DATE, 1,4) AND substr(PLAN_END_DATE,1,4)
+		        ) 
+		        b ON(a.DEPT_ID = b.CHARGE_PART_ID)
+		        LEFT JOIN PM_SDLC d ON(b.PRJ_MNG_NO = d.PRJ_MNG_NO)
+			WHERE   a.DEPT_STATUS = '1'
+		), DATA3 AS (
+		
+		    SELECT  m.DEPT_ID, m.PARENT_DEPT_ID,
+		            sum(m.PROCESS_CNT) as PROCESS_CNT, 
+		            sum(m.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+		            sum(m.CMPL_CNT) as CMPL_CNT,
+		            sum(m.STAY_CNT) as STAY_CNT,
+		            sum(m.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+		            sum(m.PRJ_DIV0) as PRJ_DIV0,
+		            sum(m.PRJ_DIV1) as PRJ_DIV1,
+		            sum(m.PRJ_DIV2) as PRJ_DIV2,
+		            sum(m.PRJ_DIV3) as PRJ_DIV3,
+		            sum(m.PRJ_DIV4) as PRJ_DIV4,
+		            sum(m.PRJ_DIV5) as PRJ_DIV5,
+		            sum(m.PRJ_DIV6) as PRJ_DIV6
+		    FROM    DATA1 m
+		    GROUP   BY m.dept_id, m.PARENT_DEPT_ID
+		), DEPT_CTE ( 
+			DEPT_MANAGER_ID,PARENT_DEPT_ID,DEPT_ID,DEPT_NAME,DEPT_LEVEL,COMP_ID, SORT_ORDER
+		) AS ( 
+			SELECT DEPT_MANAGER_ID, PARENT_DEPT_ID, DEPT_ID, DEPT_NAME, DEPT_LEVEL, COMP_ID, SORT_ORDER
+			FROM	PM_DEPT
+			WHERE	COMP_ID = #{searchCompId,jdbcType=VARCHAR}
+				<if test="parentDeptId != null and parentDeptId != '' ">
+				AND 	DEPT_ID = #{parentDeptId,jdbcType=VARCHAR}
+				</if>
+				<if test="parentDeptId == null or parentDeptId == '' ">
+				AND 	DEPT_LEVEL = 1
+				</if>
+				AND		DEPT_STATUS = '1'
+				AND 	DEPT_BIZ_YN = '0'
+			UNION ALL
+			SELECT b.DEPT_MANAGER_ID, b.PARENT_DEPT_ID, b.DEPT_ID, b.DEPT_NAME, b.DEPT_LEVEL as DEPT_LEVEL, b.COMP_ID, b.SORT_ORDER
+			FROM  DEPT_CTE a JOIN PM_DEPT b on ( a.COMP_ID = b.COMP_ID AND a.DEPT_ID = b.PARENT_DEPT_ID ) 
+			WHERE 	b.DEPT_STATUS = '1' 
+				AND b.DEPT_BIZ_YN = '0'
+		) 
+		, GROUP_DATA AS (
+	        SELECT  	a.PARENT_DEPT_ID,
+	                	sum(a.PROCESS_CNT) as PROCESS_CNT, 
+	                	sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT,
+						sum(a.CMPL_CNT) as CMPL_CNT,
+						sum(a.STAY_CNT) as STAY_CNT,
+						sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+						sum(a.PRJ_DIV0) as PRJ_DIV0,
+						sum(a.PRJ_DIV1) as PRJ_DIV1,
+						sum(a.PRJ_DIV2) as PRJ_DIV2,
+						sum(a.PRJ_DIV3) as PRJ_DIV3,
+						sum(a.PRJ_DIV4) as PRJ_DIV4,
+						sum(a.PRJ_DIV5) as PRJ_DIV5,
+						sum(a.PRJ_DIV6) as PRJ_DIV6
+	        FROM    (
+			        SELECT  a.PARENT_DEPT_ID,
+			                sum(a.PROCESS_CNT) as PROCESS_CNT,
+			                sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+							sum(a.CMPL_CNT) as CMPL_CNT,
+							sum(a.STAY_CNT) as STAY_CNT,
+							sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+							sum(a.PRJ_DIV0) as PRJ_DIV0,
+							sum(a.PRJ_DIV1) as PRJ_DIV1,
+							sum(a.PRJ_DIV2) as PRJ_DIV2,
+							sum(a.PRJ_DIV3) as PRJ_DIV3,
+							sum(a.PRJ_DIV4) as PRJ_DIV4,
+							sum(a.PRJ_DIV5) as PRJ_DIV5,
+							sum(a.PRJ_DIV6) as PRJ_DIV6
+			        FROM    DATA3 a 
+			        WHERE 	a.PARENT_DEPT_ID != #{searchCompId,jdbcType=VARCHAR}
+			        GROUP   BY a.PARENT_DEPT_ID
+			        UNION
+			        SELECT  #{searchCompId,jdbcType=VARCHAR} as PARENT_DEPT_ID,
+							sum(a.process_cnt) as PROCESS_CNT,
+							sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+							sum(a.CMPL_CNT) as CMPL_CNT,
+							sum(a.STAY_CNT) as STAY_CNT,
+							sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+							sum(a.PRJ_DIV0) as PRJ_DIV0,
+							sum(a.PRJ_DIV1) as PRJ_DIV1,
+							sum(a.PRJ_DIV2) as PRJ_DIV2,
+							sum(a.PRJ_DIV3) as PRJ_DIV3,
+							sum(a.PRJ_DIV4) as PRJ_DIV4,
+							sum(a.PRJ_DIV5) as PRJ_DIV5,
+							sum(a.PRJ_DIV6) as PRJ_DIV6
+			        FROM    DATA3 a
+			) a
+		    GROUP BY a.PARENT_DEPT_ID
+        )
+        SELECT  a.DEPT_ID, a.DEPT_NAME, a.PARENT_DEPT_ID,
+		        a.DEPT_LEVEL, FNC_REF_CODE_NAME('20102',a.DEPT_LEVEL) as DEPT_LEVEL_NAME,
+		        NVL(g.PROCESS_CNT,0) + NVL(c.PROCESS_CNT,0) as PROCESS_CNT, 
+		        NVL(g.CMPL_CNT,0) + NVL(c.CMPL_CNT,0) as CMPL_CNT, 
+		        NVL(g.STAY_CNT,0) + NVL(c.STAY_CNT,0) as STAY_CNT, 
+		        NVL(g.PROCESS_DELAY_CNT,0) + NVL(c.PROCESS_DELAY_CNT,0) + NVL(g.STAY_DELAY_CNT,0) + NVL(c.STAY_DELAY_CNT,0) as DELAY_CNT,
+		        NVL(g.PRJ_DIV0,0) + NVL(c.PRJ_DIV0,0) as DIV0, 
+		        NVL(g.PRJ_DIV1,0) + NVL(c.PRJ_DIV1,0) as DIV1, 
+		        NVL(g.PRJ_DIV2,0) + NVL(c.PRJ_DIV2,0) as DIV2, 
+		        NVL(g.PRJ_DIV3,0) + NVL(c.PRJ_DIV3,0) as DIV3,
+		        NVL(g.PRJ_DIV4,0) + NVL(c.PRJ_DIV4,0) as DIV4, 
+		        NVL(g.PRJ_DIV5,0) + NVL(c.PRJ_DIV5,0) as DIV5, 
+		        NVL(g.PRJ_DIV6,0) + NVL(c.PRJ_DIV6,0) as DIV6		        
+		FROM    DEPT_CTE a LEFT JOIN DATA3 c ON(a.DEPT_ID = c.DEPT_ID)
+			LEFT JOIN GROUP_DATA g ON(a.DEPT_ID = g.PARENT_DEPT_ID)
+		WHERE   1 = 1
+		ORDER BY a.SORT_ORDER,a.DEPT_NAME -->
+	</select>
+	
+	<select id="dashBoardDeptMonProjectList" parameterType="java.util.Map" resultType="java.util.HashMap">
+	/* PM_DASHBOARD_STATUS.dashBoardDeptMonProjectList */ 
+	/* PM_DASHBOARD_STATUS_SqlMap.dashBoardDeptMonProjectList 2019-10-19  */
+	       WITH DATA1 AS (       
+                SELECT  substr(BASE_DATE,1,6) AS BASE_MONTH
+                FROM    PM_CALENDAR
+                WHERE   BASE_DATE LIKE #{baseYear,jdbcType=VARCHAR} || '%'
+                GROUP   BY substr(BASE_DATE,1,6)
+        ), PRJ_DATA1 AS (
+            SELECT  a.PRJ_MNG_NO, a.PM_ID, a.PLAN_BEG_DATE, a.PLAN_END_DATE,
+                    a.CHARGE_PART_ID as DEPT_ID, b.BASE_MONTH, 
+                    1 as REAL_TOT, substr(BASE_MONTH,5,2) as BASE_COL
+            FROM    PM_PRJ a,
+                    DATA1 b
+            WHERE	b.BASE_MONTH BETWEEN substr(a.PLAN_BEG_DATE, 1,6) AND substr(a.PLAN_END_DATE,1,6)   
+            AND 	a.PRJ_STATUS in ('0', '1', '2', '3')  
+		), DEPT_CTE ( 
+			DEPT_MANAGER_ID,PARENT_DEPT_ID,DEPT_ID,DEPT_NAME,DEPT_LEVEL,COMP_ID, SORT_ORDER
+		) AS
+		( 
+			SELECT DEPT_MANAGER_ID,PARENT_DEPT_ID, DEPT_ID, DEPT_NAME, DEPT_LEVEL, COMP_ID, SORT_ORDER
+			FROM	PM_DEPT
+			WHERE	COMP_ID = #{baseComp,jdbcType=VARCHAR}
+				<if test="parentDeptId != null and parentDeptId != '' ">
+				AND 	DEPT_ID = #{parentDeptId,jdbcType=VARCHAR}
+				</if>
+				<if test="parentDeptId == null or parentDeptId == '' ">
+				AND 	DEPT_LEVEL = 1
+				</if>
+				AND		DEPT_STATUS = '1'
+				AND 	DEPT_BIZ_YN = '0'
+			UNION ALL
+			SELECT b.DEPT_MANAGER_ID, b.PARENT_DEPT_ID, b.DEPT_ID, b.DEPT_NAME, b.dept_level as dept_level, b.COMP_ID, b.SORT_ORDER
+			FROM  DEPT_CTE a JOIN  PM_DEPT b on (a.COMP_ID = b.COMP_ID AND a.DEPT_ID = b.PARENT_DEPT_ID ) 
+			WHERE b.DEPT_STATUS = '1' 
+				AND b.DEPT_BIZ_YN = '0'
+		), PRJ_TOT AS (
+  		        SELECT  A.DEPT_ID, A.PARENT_DEPT_ID,
+		                SUM(MON_01) AS MON_01,SUM(MON_02) AS MON_02,SUM(MON_03) AS MON_03,SUM(MON_04) AS MON_04,SUM(MON_05) AS MON_05,
+		                SUM(MON_06) AS MON_06,SUM(MON_07) AS MON_07,SUM(MON_08) AS MON_08,SUM(MON_09) AS MON_09,SUM(MON_10) AS MON_10,
+		                SUM(MON_11) AS MON_11,SUM(MON_12) AS MON_12
+		        FROM    PM_DEPT a LEFT JOIN  (
+					        SELECT  DEPT_ID,
+					                (CASE WHEN BASE_COL = '01' THEN REAL_TOT ELSE 0 END) AS MON_01,
+					                (CASE WHEN BASE_COL = '02' THEN REAL_TOT ELSE 0 END) AS MON_02,
+					                (CASE WHEN BASE_COL = '03' THEN REAL_TOT ELSE 0 END) AS MON_03,
+					                (CASE WHEN BASE_COL = '04' THEN REAL_TOT ELSE 0 END) AS MON_04,
+					                (CASE WHEN BASE_COL = '05' THEN REAL_TOT ELSE 0 END) AS MON_05,
+					                (CASE WHEN BASE_COL = '06' THEN REAL_TOT ELSE 0 END) AS MON_06,
+					                (CASE WHEN BASE_COL = '07' THEN REAL_TOT ELSE 0 END) AS MON_07,
+					                (CASE WHEN BASE_COL = '08' THEN REAL_TOT ELSE 0 END) AS MON_08,
+					                (CASE WHEN BASE_COL = '09' THEN REAL_TOT ELSE 0 END) AS MON_09,
+					                (CASE WHEN BASE_COL = '10' THEN REAL_TOT ELSE 0 END) AS MON_10,
+					                (CASE WHEN BASE_COL = '11' THEN REAL_TOT ELSE 0 END) AS MON_11,
+					                (CASE WHEN BASE_COL = '12' THEN REAL_TOT ELSE 0 END) AS MON_12
+					        FROM    PRJ_DATA1
+		                ) M ON(a.DEPT_ID = m.DEPT_ID)
+		        WHERE   1 = 1
+		        	AND A.DEPT_STATUS = '1'
+		        	AND A.COMP_ID = #{baseComp,jdbcType=VARCHAR}
+					and A.DEPT_BIZ_YN = '0'
+		        GROUP   BY  A.DEPT_ID, A.PARENT_DEPT_ID
+        )
+	    SELECT m.DEPT_ID
+	    	, d.DEPT_NAME
+	    	, lpad(' ', (d.DEPT_LEVEL-1)*2, '   ')||d.DEPT_NAME as DEPT_TITLE, m.PARENT_DEPT_ID
+        	, d.DEPT_LEVEL , FNC_REF_CODE_NAME('20102', d.DEPT_LEVEL) as DEPT_LEVEL_NAME
+			, d.SORT_ORDER
+			, NVL(m.MON_01, 0) AS MON_01 , (SELECT NVL(SUM(t.MON_01),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_01
+			, NVL(m.MON_02, 0) AS MON_02 , (SELECT NVL(SUM(t.MON_02),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_02
+			, NVL(m.MON_03, 0) AS MON_03 , (SELECT NVL(SUM(t.MON_03),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_03
+			, NVL(m.MON_04, 0) AS MON_04 , (SELECT NVL(SUM(t.MON_04),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_04
+			, NVL(m.MON_05, 0) AS MON_05 , (SELECT NVL(SUM(t.MON_05),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_05
+			, NVL(m.MON_06, 0) AS MON_06 , (SELECT NVL(SUM(t.MON_06),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_06
+			, NVL(m.MON_07, 0) AS MON_07 , (SELECT NVL(SUM(t.MON_07),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_07
+			, NVL(m.MON_08, 0) AS MON_08 , (SELECT NVL(SUM(t.MON_08),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_08
+			, NVL(m.MON_09, 0) AS MON_09 , (SELECT NVL(SUM(t.MON_09),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_09
+			, NVL(m.MON_10, 0) AS MON_10 , (SELECT NVL(SUM(t.MON_10),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_10
+			, NVL(m.MON_11, 0) AS MON_11 , (SELECT NVL(SUM(t.MON_11),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_11
+			, NVL(m.MON_12, 0) AS MON_12 , (SELECT NVL(SUM(t.MON_12),0) as CNT FROM PRJ_TOT t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as TMON_12
+        FROM PRJ_TOT M JOIN DEPT_CTE d ON (m.DEPT_ID = d.DEPT_ID)
+        WHERE   1 = 1
+        ORDER BY d.SORT_ORDER
+        <!-- 
+        WITH DATA1 AS (       
+                SELECT  substr(BASE_DATE,1,6) AS BASE_MONTH
+                FROM    PM_CALENDAR
+                WHERE   BASE_DATE LIKE #{baseYear,jdbcType=VARCHAR} || '%'
+                GROUP   BY substr(BASE_DATE,1,6)
+        ), PRJ_DATA1 AS (
+            SELECT  a.PRJ_MNG_NO, a.PM_ID, a.PLAN_BEG_DATE, a.PLAN_END_DATE,
+                    a.CHARGE_PART_ID as DEPT_ID, b.BASE_MONTH, 
+                    1 as REAL_TOT, substr(BASE_MONTH,5,2) as BASE_COL
+            FROM    PM_PRJ a,
+                    DATA1 b
+            WHERE	b.BASE_MONTH BETWEEN substr(a.PLAN_BEG_DATE, 1,6) AND substr(a.PLAN_END_DATE,1,6)   
+            AND 	a.PRJ_STATUS in ('0', '1', '2', '3')  
+        ), DEPT_CTE ( 
+			DEPT_MANAGER_ID,PARENT_DEPT_ID,DEPT_ID,DEPT_NAME,DEPT_LEVEL,COMP_ID, SORT_ORDER
+		) AS
+		( 
+			SELECT DEPT_MANAGER_ID,PARENT_DEPT_ID, DEPT_ID, DEPT_NAME, DEPT_LEVEL, COMP_ID, SORT_ORDER
+			FROM	PM_DEPT
+			WHERE	COMP_ID = #{baseComp,jdbcType=VARCHAR}
+				<if test="parentDeptId != null and parentDeptId != '' ">
+				AND 	DEPT_ID = #{parentDeptId,jdbcType=VARCHAR}
+				</if>
+				<if test="parentDeptId == null or parentDeptId == '' ">
+				AND 	DEPT_LEVEL = 1
+				</if>
+				AND		DEPT_STATUS = '1'
+				AND 	DEPT_BIZ_YN = '0'
+			UNION ALL
+			SELECT b.dept_manager_id, b.PARENT_DEPT_ID, b.DEPT_ID, b.DEPT_NAME, b.dept_level as dept_level, b.COMP_ID, b.SORT_ORDER
+			FROM  DEPT_CTE a JOIN  PM_DEPT b on (a.COMP_ID = b.COMP_ID AND a.DEPT_ID = b.PARENT_DEPT_ID ) 
+			WHERE b.DEPT_STATUS = '1' 
+				AND b.DEPT_BIZ_YN = '0'
+		), PRJ_TOT AS (
+        
+		        SELECT  FNC_DEPT_NAME(A.PARENT_DEPT_ID) as PARENT_DEPT_NAME, 
+		                a.DEPT_NAME, a.DEPT_ID, a.SORT_ORDER,a.PARENT_DEPT_ID, 
+		                a.DEPT_LEVEL, 
+		                (SELECT COUNT(s.DEPT_ID) FROM PM_DEPT s WHERE s.PARENT_DEPT_ID = a.DEPT_ID )  as CHID_CNT, 
+		                SUM(MON_01) AS MON_01,SUM(MON_02) AS MON_02,SUM(MON_03) AS MON_03,SUM(MON_04) AS MON_04,SUM(MON_05) AS MON_05,
+		                SUM(MON_06) AS MON_06,SUM(MON_07) AS MON_07,SUM(MON_08) AS MON_08,SUM(MON_09) AS MON_09,SUM(MON_10) AS MON_10,
+		                SUM(MON_11) AS MON_11,SUM(MON_12) AS MON_12
+		        FROM    DEPT_CTE a LEFT JOIN 
+		                (
+					        SELECT  DEPT_ID,
+					                (CASE WHEN BASE_COL = '01' THEN REAL_TOT ELSE 0 END) AS MON_01,
+					                (CASE WHEN BASE_COL = '02' THEN REAL_TOT ELSE 0 END) AS MON_02,
+					                (CASE WHEN BASE_COL = '03' THEN REAL_TOT ELSE 0 END) AS MON_03,
+					                (CASE WHEN BASE_COL = '04' THEN REAL_TOT ELSE 0 END) AS MON_04,
+					                (CASE WHEN BASE_COL = '05' THEN REAL_TOT ELSE 0 END) AS MON_05,
+					                (CASE WHEN BASE_COL = '06' THEN REAL_TOT ELSE 0 END) AS MON_06,
+					                (CASE WHEN BASE_COL = '07' THEN REAL_TOT ELSE 0 END) AS MON_07,
+					                (CASE WHEN BASE_COL = '08' THEN REAL_TOT ELSE 0 END) AS MON_08,
+					                (CASE WHEN BASE_COL = '09' THEN REAL_TOT ELSE 0 END) AS MON_09,
+					                (CASE WHEN BASE_COL = '10' THEN REAL_TOT ELSE 0 END) AS MON_10,
+					                (CASE WHEN BASE_COL = '11' THEN REAL_TOT ELSE 0 END) AS MON_11,
+					                (CASE WHEN BASE_COL = '12' THEN REAL_TOT ELSE 0 END) AS MON_12
+					        FROM    PRJ_DATA1
+		                ) M ON(a.DEPT_ID = m.DEPT_ID)
+		        WHERE   1 = 1
+			<if test="deptId != null and deptId != '' ">
+				AND a.dept_id = #{deptId,jdbcType=VARCHAR}
+			</if>
+		        GROUP   BY  a.PARENT_DEPT_ID, a.DEPT_NAME, a.DEPT_ID, a.SORT_ORDER,a.PARENT_DEPT_ID, a.DEPT_LEVEL
+        ), GROUP_DATA AS (
+	        SELECT  m.PARENT_DEPT_ID,
+	                SUM(MON_01) AS TMON_01,SUM(MON_02) AS TMON_02,SUM(MON_03) AS TMON_03,SUM(MON_04) AS TMON_04,SUM(MON_05) AS TMON_05,
+	                SUM(MON_06) AS TMON_06,SUM(MON_07) AS TMON_07,SUM(MON_08) AS TMON_08,SUM(MON_09) AS TMON_09,SUM(MON_10) AS TMON_10,
+	                SUM(MON_11) AS TMON_11,SUM(MON_12) AS TMON_12
+	        FROM    (
+        
+		        SELECT  a.PARENT_DEPT_ID,
+		                SUM(MON_01) AS MON_01,SUM(MON_02) AS MON_02,SUM(MON_03) AS MON_03,SUM(MON_04) AS MON_04,SUM(MON_05) AS MON_05,
+		                SUM(MON_06) AS MON_06,SUM(MON_07) AS MON_07,SUM(MON_08) AS MON_08,SUM(MON_09) AS MON_09,SUM(MON_10) AS MON_10,
+		                SUM(MON_11) AS MON_11,SUM(MON_12) AS MON_12 
+		        FROM    PRJ_TOT a 
+		        WHERE	a.PARENT_DEPT_ID != #{parentDeptId,jdbcType=VARCHAR}
+		        GROUP   BY a.PARENT_DEPT_ID
+		        UNION
+		        SELECT  #{parentDeptId,jdbcType=VARCHAR} as PARENT_DEPT_ID,
+		                SUM(MON_01) AS MON_01,SUM(MON_02) AS MON_02,SUM(MON_03) AS MON_03,SUM(MON_04) AS MON_04,SUM(MON_05) AS MON_05,
+		                SUM(MON_06) AS MON_06,SUM(MON_07) AS MON_07,SUM(MON_08) AS MON_08,SUM(MON_09) AS MON_09,SUM(MON_10) AS MON_10,
+		                SUM(MON_11) AS MON_11,SUM(MON_12) AS MON_12 
+		        FROM    PRJ_TOT a
+		        WHERE   a.DEPT_ID != #{parentDeptId,jdbcType=VARCHAR}
+			) m
+		    GROUP BY m.PARENT_DEPT_ID
+        )
+        SELECT  a.*, b.*
+        FROM    PRJ_TOT a LEFT JOIN GROUP_DATA b ON(a.DEPT_ID = b.PARENT_DEPT_ID)
+        ORDER   BY a.SORT_ORDER -->
+	</select>
+	
+	<select id="dashBoardWeeklyDeptProjectTab" parameterType="java.util.Map" resultType="java.util.HashMap">
+	/* PM_DASHBOARD_STATUS.dashBoardWeeklyDeptProjectTab 20191017 */ 
+		WITH DEPT_CTE ( 
+			DEPT_MANAGER_ID,PARENT_DEPT_ID,DEPT_ID,DEPT_NAME,DEPT_LEVEL,COMP_ID, SORT_ORDER
+		) AS
+		( 
+			SELECT DEPT_MANAGER_ID,PARENT_DEPT_ID, DEPT_ID, DEPT_NAME, DEPT_LEVEL, COMP_ID, SORT_ORDER
+			FROM	PM_DEPT
+			WHERE	COMP_ID = #{searchCompId,jdbcType=VARCHAR}
+				<if test="searchTeamId != null and searchTeamId != '' ">
+		    	AND DEPT_ID = #{searchTeamId,jdbcType=VARCHAR}
+		    	</if>
+		    	<if test="searchTeamId == null or searchTeamId == '' ">
+		    	AND DEPT_LEVEL = 1
+		    	</if> 
+				AND		DEPT_STATUS = '1'
+				AND 	DEPT_BIZ_YN = '0'
+			UNION ALL
+			SELECT b.DEPT_MANAGER_ID, b.PARENT_DEPT_ID, b.DEPT_ID, b.DEPT_NAME, b.dept_level as dept_level, b.COMP_ID, b.SORT_ORDER
+			FROM  DEPT_CTE a JOIN  PM_DEPT b on (a.COMP_ID = b.COMP_ID AND a.DEPT_ID = b.PARENT_DEPT_ID ) 
+			WHERE b.DEPT_STATUS = '1' 
+				AND b.DEPT_BIZ_YN = '0'
+		), DATA1 AS (
+			SELECT  a.DEPT_ID , a.DEPT_NAME , a.PARENT_DEPT_ID,  a.SORT_ORDER, b.PRJ_MNG_NO,
+			        (CASE WHEN b.PRJ_STATUS in ('1', '3')  AND b.PLAN_END_DATE BETWEEN #{weekSdate,jdbcType=VARCHAR} AND #{weekEdate,jdbcType=VARCHAR}
+			        	THEN 1 else 0 end) as CMPL_SCHD1,  
+			        (CASE WHEN b.PRJ_STATUS IN('1', '3') AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR})
+			        	THEN 1 else 0 end) as PROCESS_CNT,
+			         (CASE WHEN b.PRJ_STATUS IN('1', '3') AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR})
+			        	THEN 1 else 0 end) as PROCESS_DELAY_CNT,	
+			        (CASE WHEN b.PRJ_STATUS  = '2' THEN 1 ELSE 0 END) as CMPL_CNT,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE BETWEEN #{weekSdate,jdbcType=VARCHAR} AND #{weekEdate,jdbcType=VARCHAR} THEN 1 ELSE 0 END) as CMPL_SCHD2,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} 
+			        	AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR}) THEN 1 ELSE 0 END) as STAY_CNT,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} 
+			        	AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR}) THEN 1 ELSE 0 END) as STAY_DELAY_CNT,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) is null AND b.PRJ_MNG_NO is not null THEN 1 ELSE 0 END) as prj_div0,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='1' THEN 1 ELSE 0 END) as prj_div1,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='2' THEN 1 ELSE 0 END) as prj_div2,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='3' THEN 1 ELSE 0 END) as prj_div3,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='4' THEN 1 ELSE 0 END) as prj_div4,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='5' THEN 1 ELSE 0 END) as prj_div5,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='6' THEN 1 ELSE 0 END) as prj_div6,
+			        (CASE WHEN b.CMPL_HOPE_DATE <![CDATA[<=]]> d.TRANSF_ADMIT_DATE THEN 1 ELSE 0 END) as DELIVERY_CNT,
+			        (CASE WHEN d.SDLC_SEQ <![CDATA[>]]> 1 THEN 1 ELSE 0 END) as REDEPLOY_CNT
+			FROM    DEPT_CTE a  LEFT JOIN (
+			        SELECT	a.*, (SELECT s.REF_BIZ_CD1 FROM PM_STD_WBS s where s.STD_WBS_ID = a.WBS_SEQ) as BIZ_CD   
+			        FROM	PM_PRJ a
+			        WHERE   PRJ_STATUS != '5'
+			        AND  	a.PLAN_BEG_DATE  <![CDATA[<=]]> #{weekEdate,jdbcType=VARCHAR}
+			        AND  	(SUBSTR(a.PLAN_BEG_DATE,1,4) = #{selYear,jdbcType=VARCHAR} OR SUBSTR(a.PLAN_END_DATE,1,4) = #{selYear,jdbcType=VARCHAR})
+				)  b ON(a.DEPT_ID = b.CHARGE_PART_ID)
+				LEFT JOIN PM_SDLC d ON(b.PRJ_MNG_NO = d.PRJ_MNG_NO)
+
+		), DATA3 AS (
+		
+		    SELECT  m.DEPT_ID, m.PARENT_DEPT_ID,
+		            sum(m.PROCESS_CNT) as PROCESS_CNT, 
+		            sum(m.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+		            sum(m.CMPL_SCHD1)+sum(m.CMPL_SCHD2) as CMPL_SCHD,
+		            sum(m.CMPL_CNT) as CMPL_CNT,
+		            sum(m.STAY_CNT) as STAY_CNT,
+		            sum(m.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+		            sum(m.PRJ_DIV0) as PRJ_DIV0,
+		            sum(m.PRJ_DIV1) as PRJ_DIV1,
+		            sum(m.PRJ_DIV2) as PRJ_DIV2,
+		            sum(m.PRJ_DIV3) as PRJ_DIV3,
+		            sum(m.PRJ_DIV4) as PRJ_DIV4,
+		            sum(m.PRJ_DIV5) as PRJ_DIV5,
+		            sum(m.PRJ_DIV6) as PRJ_DIV6
+		    FROM    DATA1 m
+		    GROUP   BY m.DEPT_ID, m.PARENT_DEPT_ID
+		) 
+		SELECT DEPT_ID, PARENT_DEPT_ID
+			, DEPT_NAME, DEPT_TITLE 
+			, DEPT_LEVEL, DEPT_LEVEL_NAME
+			, SORT_ORDER
+			, (PROCESS_CNT + PROCESS_CNT_SUB) AS PROCESS_CNT
+			, (CMPL_CNT + CMPL_CNT_SUB) AS CMPL_CNT
+			, (CMPL_SCHD + CMPL_SCHD_SUB) AS CMPL_SCHD
+			, (STAY_CNT + STAY_CNT_SUB) AS STAY_CNT
+			, (PROCESS_DELAY_CNT + PROCESS_DELAY_CNT_SUB + STAY_DELAY_CNT + STAY_DELAY_CNT_SUB) AS DELAY_CNT
+			, (PRJ_DIV0 + PRJ_DIV0_SUB) AS DIV0
+			, (PRJ_DIV1 + PRJ_DIV1_SUB) AS DIV1
+			, (PRJ_DIV2 + PRJ_DIV2_SUB) AS DIV2
+			, (PRJ_DIV3 + PRJ_DIV3_SUB) AS DIV3
+			, (PRJ_DIV4 + PRJ_DIV4_SUB) AS DIV4
+			, (PRJ_DIV5 + PRJ_DIV5_SUB) AS DIV5
+			, (PRJ_DIV6 + PRJ_DIV6_SUB) AS DIV6
+		FROM (
+			SELECT	M.DEPT_ID, M.PARENT_DEPT_ID
+	    		, d.DEPT_NAME
+	    		, lpad(' ', (d.DEPT_LEVEL-1)*2, '   ')||d.DEPT_NAME as DEPT_TITLE
+        		, d.DEPT_LEVEL , FNC_REF_CODE_NAME('20102', d.DEPT_LEVEL) as DEPT_LEVEL_NAME
+				, d.SORT_ORDER
+				, PROCESS_CNT, (SELECT NVL(SUM(t.PROCESS_CNT),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PROCESS_CNT_SUB
+				, CMPL_CNT, (SELECT NVL(SUM(t.CMPL_CNT),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as CMPL_CNT_SUB
+				, CMPL_SCHD, (SELECT NVL(SUM(t.CMPL_SCHD),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as CMPL_SCHD_SUB
+				, STAY_CNT, (SELECT NVL(SUM(t.STAY_CNT),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as STAY_CNT_SUB
+				, PROCESS_DELAY_CNT, (SELECT NVL(SUM(t.PROCESS_DELAY_CNT),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PROCESS_DELAY_CNT_SUB
+				, STAY_DELAY_CNT, (SELECT NVL(SUM(t.STAY_DELAY_CNT),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as STAY_DELAY_CNT_SUB
+				, PRJ_DIV0, (SELECT NVL(SUM(t.PRJ_DIV0),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV0_SUB
+				, PRJ_DIV1, (SELECT NVL(SUM(t.PRJ_DIV1),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV1_SUB
+				, PRJ_DIV2, (SELECT NVL(SUM(t.PRJ_DIV2),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV2_SUB
+				, PRJ_DIV3, (SELECT NVL(SUM(t.PRJ_DIV3),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV3_SUB
+				, PRJ_DIV4, (SELECT NVL(SUM(t.PRJ_DIV4),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV4_SUB
+				, PRJ_DIV5, (SELECT NVL(SUM(t.PRJ_DIV5),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV5_SUB
+				, PRJ_DIV6, (SELECT NVL(SUM(t.PRJ_DIV6),0) as CNT FROM DATA3 t START WITH t.PARENT_DEPT_ID = m.DEPT_ID  CONNECT BY PRIOR t.DEPT_ID = t.PARENT_DEPT_ID ) as PRJ_DIV6_SUB
+			FROM DATA3 M JOIN DEPT_CTE d ON (m.DEPT_ID = d.DEPT_ID) 
+		)
+		ORDER BY SORT_ORDER
+<!-- 		WITH DATA1 AS (
+			SELECT  a.DEPT_ID , a.DEPT_NAME , a.PARENT_DEPT_ID,  a.SORT_ORDER, b.PRJ_MNG_NO,
+			        (CASE WHEN b.PRJ_STATUS in ('1', '3')  AND b.PLAN_END_DATE BETWEEN #{weekSdate,jdbcType=VARCHAR} AND #{weekEdate,jdbcType=VARCHAR}
+			        	THEN 1 else 0 end) as CMPL_SCHD1,  
+			        (CASE WHEN b.PRJ_STATUS IN('1', '3') AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR})
+			        	THEN 1 else 0 end) as PROCESS_CNT,
+			         (CASE WHEN b.PRJ_STATUS IN('1', '3') AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR})
+			        	THEN 1 else 0 end) as PROCESS_DELAY_CNT,	
+			        (CASE WHEN b.PRJ_STATUS  = '2' THEN 1 ELSE 0 END) as CMPL_CNT,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE BETWEEN #{weekSdate,jdbcType=VARCHAR} AND #{weekEdate,jdbcType=VARCHAR} THEN 1 ELSE 0 END) as CMPL_SCHD2,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[>=]]> #{todayDate,jdbcType=VARCHAR} 
+			        	AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR}) THEN 1 ELSE 0 END) as STAY_CNT,
+			        (CASE WHEN b.PRJ_STATUS  = '0' AND b.PLAN_END_DATE <![CDATA[<]]> #{todayDate,jdbcType=VARCHAR} 
+			        	AND (b.PLAN_END_DATE <![CDATA[<]]> #{weekSdate,jdbcType=VARCHAR} OR b.PLAN_END_DATE <![CDATA[>]]> #{weekEdate,jdbcType=VARCHAR}) THEN 1 ELSE 0 END) as STAY_DELAY_CNT,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) is null AND b.PRJ_MNG_NO is not null THEN 1 ELSE 0 END) as prj_div0,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='1' THEN 1 ELSE 0 END) as prj_div1,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='2' THEN 1 ELSE 0 END) as prj_div2,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='3' THEN 1 ELSE 0 END) as prj_div3,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='4' THEN 1 ELSE 0 END) as prj_div4,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='5' THEN 1 ELSE 0 END) as prj_div5,
+			        (CASE WHEN NVL(b.PRJ_DIV, b.BIZ_CD) ='6' THEN 1 ELSE 0 END) as prj_div6,
+			        (CASE WHEN b.CMPL_HOPE_DATE <![CDATA[<=]]> d.TRANSF_ADMIT_DATE THEN 1 ELSE 0 END) as DELIVERY_CNT,
+			        (CASE WHEN d.SDLC_SEQ <![CDATA[>]]> 1 THEN 1 ELSE 0 END) as REDEPLOY_CNT
+			FROM    PM_DEPT a 
+			LEFT JOIN (
+			        SELECT	a.*, (SELECT s.REF_BIZ_CD1 FROM PM_STD_WBS s where s.STD_WBS_ID = a.WBS_SEQ) as BIZ_CD   
+			        FROM	PM_PRJ a
+			        WHERE   PRJ_STATUS != '5'
+			        AND  	a.PLAN_BEG_DATE <![CDATA[<=]]> #{weekEdate,jdbcType=VARCHAR}
+			        AND  	(SUBSTR(a.PLAN_BEG_DATE,1,4) = #{selYear,jdbcType=VARCHAR} OR SUBSTR(a.PLAN_END_DATE,1,4) = #{selYear,jdbcType=VARCHAR})
+			)  b ON(a.DEPT_ID = b.CHARGE_PART_ID)
+			LEFT JOIN PM_SDLC d ON(b.PRJ_MNG_NO = d.PRJ_MNG_NO)
+			WHERE   a.DEPT_STATUS = '1'
+
+		), DATA3 AS (
+		
+		    SELECT  m.dept_id, m.PARENT_DEPT_ID,
+		            sum(m.PROCESS_CNT) as PROCESS_CNT, 
+		            sum(m.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+		            sum(m.CMPL_SCHD1)+sum(m.CMPL_SCHD2) as CMPL_SCHD,
+		            sum(m.CMPL_CNT) as CMPL_CNT,
+		            sum(m.STAY_CNT) as STAY_CNT,
+		            sum(m.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+		            sum(m.prj_div0) as PRJ_DIV0,
+		            sum(m.prj_div1) as PRJ_DIV1,
+		            sum(m.prj_div2) as PRJ_DIV2,
+		            sum(m.prj_div3) as PRJ_DIV3,
+		            sum(m.prj_div4) as PRJ_DIV4,
+		            sum(m.prj_div5) as PRJ_DIV5,
+		            sum(m.prj_div6) as PRJ_DIV6
+		    FROM    DATA1 m
+		    GROUP   BY m.dept_id, m.PARENT_DEPT_ID
+		), DEPT_CTE ( 
+			dept_manager_id,parent_dept_id,dept_id,dept_name,dept_level,comp_id, sort_order
+		) AS (
+			SELECT DEPT_MANAGER_ID,PARENT_DEPT_ID, DEPT_ID, DEPT_NAME, DEPT_LEVEL, COMP_ID, SORT_ORDER
+			FROM	PM_DEPT
+			WHERE 1=1
+			
+		    	<if test="searchTeamId != null and searchTeamId != '' ">
+		    	AND DEPT_ID = #{searchTeamId,jdbcType=VARCHAR}
+		    	</if>
+		    	<if test="searchTeamId == null or searchTeamId == '' ">
+		    	AND DEPT_ID = #{mainDeptId,jdbcType=VARCHAR}
+		    	</if>
+		    	
+			AND		DEPT_STATUS = '1'
+			UNION ALL
+			SELECT b.DEPT_MANAGER_ID, b.PARENT_DEPT_ID, b.DEPT_ID, b.DEPT_NAME, b.DEPT_LEVEL as DEPT_LEVEL, b.COMP_ID, b.SORT_ORDER
+			FROM  DEPT_CTE a JOIN  PM_DEPT b on   a.dept_id = b.PARENT_DEPT_ID  AND	b.DEPT_STATUS = '1'
+		) 
+		, GROUP_DATA AS (
+	        SELECT  a.PARENT_DEPT_ID,
+	                sum(a.PROCESS_CNT) as PROCESS_CNT,
+	                sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+	                sum(a.CMPL_SCHD) as CMPL_SCHD,
+					sum(a.CMPL_CNT) as CMPL_CNT,
+					sum(a.STAY_CNT) as STAY_CNT,
+					sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+					sum(a.PRJ_DIV0) as PRJ_DIV0,
+					sum(a.PRJ_DIV1) as PRJ_DIV1,
+					sum(a.PRJ_DIV2) as PRJ_DIV2,
+					sum(a.PRJ_DIV3) as PRJ_DIV3,
+					sum(a.PRJ_DIV4) as PRJ_DIV4,
+					sum(a.PRJ_DIV5) as PRJ_DIV5,
+					sum(a.PRJ_DIV6) as PRJ_DIV6
+	        FROM    (
+				        SELECT  a.PARENT_DEPT_ID,
+				                sum(a.PROCESS_CNT) as PROCESS_CNT, 
+				                sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT, 
+				                sum(a.CMPL_SCHD) as CMPL_SCHD,
+								sum(a.cmpl_cnt) as CMPL_CNT,
+								sum(a.stay_cnt) as STAY_CNT,
+								sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+								sum(a.prj_div0) as PRJ_DIV0,
+								sum(a.prj_div1) as PRJ_DIV1,
+								sum(a.prj_div2) as PRJ_DIV2,
+								sum(a.prj_div3) as PRJ_DIV3,
+								sum(a.prj_div4) as PRJ_DIV4,
+								sum(a.prj_div5) as PRJ_DIV5,
+								sum(a.prj_div6) as PRJ_DIV6
+				        FROM    DATA3 a 
+				        WHERE a.PARENT_DEPT_ID != #{mainDeptId,jdbcType=VARCHAR}
+				        GROUP   BY a.PARENT_DEPT_ID
+				        UNION
+				        SELECT  #{mainDeptId,jdbcType=VARCHAR} as PARENT_DEPT_ID,
+								sum(a.process_cnt) as PROCESS_CNT,
+								sum(a.PROCESS_DELAY_CNT) as PROCESS_DELAY_CNT,
+								sum(a.CMPL_SCHD) as CMPL_SCHD,
+								sum(a.CMPL_CNT) as CMPL_CNT,
+								sum(a.STAY_CNT) as STAY_CNT,
+								sum(a.STAY_DELAY_CNT) as STAY_DELAY_CNT,
+								sum(a.PRJ_DIV0) as PRJ_DIV0,
+								sum(a.PRJ_DIV1) as PRJ_DIV1,
+								sum(a.PRJ_DIV2) as PRJ_DIV2,
+								sum(a.PRJ_DIV3) as PRJ_DIV3,
+								sum(a.PRJ_DIV4) as prj_div4,
+								sum(a.PRJ_DIV5) as PRJ_DIV5,
+								sum(a.PRJ_DIV6) as PRJ_DIV6
+				        FROM    DATA3 a
+			) a
+		    GROUP BY a.PARENT_DEPT_ID
+        )
+        SELECT  a.DEPT_ID, a.DEPT_NAME, a.PARENT_DEPT_ID,
+		        a.DEPT_LEVEL, FNC_REF_CODE_NAME('20102',a.DEPT_LEVEL) as DEPT_LEVEL_NAME,
+		        NVL(g.PROCESS_CNT,0) + NVL(c.PROCESS_CNT,0) as PROCESS_CNT, 
+		        NVL(g.CMPL_CNT,0) + NVL(c.CMPL_CNT,0) as CMPL_CNT, 
+		        NVL(g.CMPL_SCHD,0) + NVL(c.CMPL_SCHD,0) as CMPL_SCHD, 
+		        NVL(g.STAY_CNT,0) + NVL(c.STAY_CNT,0) as STAY_CNT,
+		        NVL(g.PROCESS_DELAY_CNT,0) + NVL(c.PROCESS_DELAY_CNT,0) + NVL(g.STAY_DELAY_CNT,0) + NVL(c.STAY_DELAY_CNT,0) as DELAY_CNT,
+		        NVL(g.prj_div0,0) + NVL(c.prj_div0,0) as DIV0, 
+		        NVL(g.prj_div1,0) + NVL(c.prj_div1,0) as DIV1, 
+		        NVL(g.prj_div2,0) + NVL(c.prj_div2,0) as DIV2, 
+		        NVL(g.prj_div3,0) + NVL(c.prj_div3,0) as DIV3,
+		        NVL(g.prj_div4,0) + NVL(c.prj_div4,0) as DIV4, 
+		        NVL(g.prj_div5,0) + NVL(c.prj_div5,0) as DIV5, 
+		        NVL(g.prj_div6,0) + NVL(c.prj_div6,0) as DIV6		        
+		FROM    DEPT_CTE a LEFT JOIN DATA3 c ON(a.dept_id = c.dept_id)
+			LEFT JOIN GROUP_DATA g ON(a.DEPT_ID = g.PARENT_DEPT_ID)
+		WHERE   1 = 1
+		ORDER BY a.sort_order,a.dept_name -->
+ 	</select>
+</mapper>
